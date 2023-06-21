@@ -10,10 +10,10 @@ import {
   ServerAPI,
   showContextMenu,
   staticClasses,
+  ToggleField,
 } from "decky-frontend-lib";
-import { VFC } from "react";
+import { VFC, useState, useEffect } from "react";
 import { FaShip } from "react-icons/fa";
-
 import logo from "../assets/logo.png";
 
 // interface AddMethodArgs {
@@ -21,7 +21,7 @@ import logo from "../assets/logo.png";
 //   right: number;
 // }
 
-const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
+const Content: VFC<{ serverAPI: ServerAPI }> = ({ serverAPI }) => {
   // const [result, setResult] = useState<number | undefined>();
 
   // const onClick = async () => {
@@ -36,6 +36,19 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
   //     setResult(result.result);
   //   }
   // };
+
+  const [usbDevices, setUsbDevices] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchUsbDevices();
+  }, []);
+
+  const fetchUsbDevices = async () => {
+    const data = await serverAPI.callPluginMethod("get_usb_devices", {});
+    if (Array.isArray(data.result)){
+      setUsbDevices(data.result);
+    }
+  };
 
   return (
     <PanelSection title="Panel Section">
@@ -74,6 +87,19 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
           Router
         </ButtonItem>
       </PanelSectionRow>
+      {usbDevices.map((usbDevice, index) => (
+        <PanelSectionRow key={index}>
+          <ToggleField checked={usbDevice.is_mounted} label={usbDevice.serial_number} description={usbDevice.device_path}></ToggleField>
+          {/* <div>
+            <h3>USB Device {index + 1}</h3>
+            <p>Serial Number: {usbDevice.serial_number}</p>
+            <p>Is Mounted: {usbDevice.is_mounted.toString()}</p>
+            <p>Device Path: {usbDevice.device_path}</p>
+            <p>Mount Point: {usbDevice.mount_point}</p>
+            <p>Filesystem: {usbDevice.filesystem}</p>
+          </div> */}
+        </PanelSectionRow>
+      ))}
     </PanelSection>
   );
 };

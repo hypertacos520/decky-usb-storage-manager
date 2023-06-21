@@ -122,6 +122,25 @@ async def monitor_usb():
 
 class Plugin:
 
+    # Returns every connected USB device's status for use in Frontend
+    async def get_usb_devices():
+        block_devices = get_block_devices()
+        usb_devices = []
+        for device_path in block_devices:
+            if is_usb_device(device_path):
+                serial_number = get_device_property(device_path, "ID_SERIAL_SHORT")
+                is_mounted = is_mounted(device_path)
+                mount_point = get_mount_point(device_path)
+                filesystem = get_filesystem(device_path)
+                usb_devices.append({
+                    "serial_number": serial_number,
+                    "is_mounted": is_mounted,
+                    "device_path": device_path,
+                    "mount_point": mount_point,
+                    "filesystem": filesystem
+                })
+        return usb_devices
+    
     # A normal method. It can be called from JavaScript using call_plugin_function("method_1", argument1, argument2)
     async def add(self, left, right):
         return left + right
@@ -129,8 +148,8 @@ class Plugin:
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
         decky_plugin.logger.info("Hello World!")
-        decky_plugin.logger.info("Monitoring USB devices...")
-        await monitor_usb()
+        # decky_plugin.logger.info("Monitoring USB devices...")
+        # await monitor_usb()
 
     # Function called first during the unload process, utilize this to handle your plugin being removed
     async def _unload(self):
