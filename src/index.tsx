@@ -45,14 +45,15 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({ serverAPI }) => {
 
   const fetchUsbDevices = async () => {
     const data = await serverAPI.callPluginMethod("get_usb_devices", {});
+    console.log(data.result)
     if (Array.isArray(data.result)){
       setUsbDevices(data.result);
     }
   };
 
   return (
-    <PanelSection title="Panel Section">
-      <PanelSectionRow>
+    <PanelSection title="Devices">
+      {/* <PanelSectionRow>
         <ButtonItem
           layout="below"
           onClick={(e) =>
@@ -68,15 +69,15 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({ serverAPI }) => {
         >
           Server says yolo
         </ButtonItem>
-      </PanelSectionRow>
+      </PanelSectionRow> */}
 
-      <PanelSectionRow>
+      {/* <PanelSectionRow>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <img src={logo} />
         </div>
-      </PanelSectionRow>
+      </PanelSectionRow> */}
 
-      <PanelSectionRow>
+      {/* <PanelSectionRow>
         <ButtonItem
           layout="below"
           onClick={() => {
@@ -86,10 +87,12 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({ serverAPI }) => {
         >
           Router
         </ButtonItem>
-      </PanelSectionRow>
+      </PanelSectionRow> */}
+
       {usbDevices.map((usbDevice, index) => (
         <PanelSectionRow key={index}>
-          <ToggleField checked={usbDevice.is_mounted} label={usbDevice.serial_number} description={usbDevice.device_path}></ToggleField>
+          <ToggleField checked={usbDevice.is_mounted} label={usbDevice.serial_number} description={`Filesystem: ${usbDevice.filesystem}`}></ToggleField>
+          {/* Display testing data obtained from backend */}
           {/* <div>
             <h3>USB Device {index + 1}</h3>
             <p>Serial Number: {usbDevice.serial_number}</p>

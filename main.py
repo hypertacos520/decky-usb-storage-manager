@@ -123,18 +123,18 @@ async def monitor_usb():
 class Plugin:
 
     # Returns every connected USB device's status for use in Frontend
-    async def get_usb_devices():
+    async def get_usb_devices(self):
         block_devices = get_block_devices()
         usb_devices = []
         for device_path in block_devices:
             if is_usb_device(device_path):
                 serial_number = get_device_property(device_path, "ID_SERIAL_SHORT")
-                is_mounted = is_mounted(device_path)
+                mounted = is_mounted(device_path)  # Renamed variable
                 mount_point = get_mount_point(device_path)
                 filesystem = get_filesystem(device_path)
                 usb_devices.append({
                     "serial_number": serial_number,
-                    "is_mounted": is_mounted,
+                    "is_mounted": mounted,  # Updated variable name
                     "device_path": device_path,
                     "mount_point": mount_point,
                     "filesystem": filesystem
