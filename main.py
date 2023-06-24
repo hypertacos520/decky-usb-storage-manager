@@ -9,19 +9,6 @@ import subprocess
 # or add the `decky-loader/plugin` path to `python.analysis.extraPaths` in `.vscode/settings.json`
 import decky_plugin
 
-def detect_and_mount_usb():
-    devices = get_block_devices()
-
-    for device in devices:
-        if is_usb_device(device):
-            device_path = device
-            if not is_mounted(device_path):
-                mount_point = get_mount_point(device)
-                if mount_point:
-                    filesystem = get_filesystem(device_path)
-                    if filesystem:
-                        mount_usb(device_path, mount_point, filesystem)
-
 def get_block_devices():
     command = "lsblk -ndo NAME -e7,11"
     output = subprocess.check_output(command, shell=True, text=True).strip()
@@ -75,50 +62,28 @@ def get_primary_partition(device_path):
                 return name
     except subprocess.CalledProcessError as e:
         raise ValueError(f"Error retrieving primary partition for device {device_path}") from e
-
-def mount_usb(device_path, mount_point, filesystem):
-    try:
-        primary_partition = get_primary_partition('/dev/' + device_path)
-        command = f'mount -t {filesystem} /dev/{primary_partition} {mount_point}'
-        subprocess.run(command, shell=True, check=True)
-        decky_plugin.logger.info(f"USB mounted: {device_path} -> {mount_point}")
-    except subprocess.CalledProcessError as e:
-        decky_plugin.logger.error(f"Error mounting USB: {device_path} -> {mount_point} - {e}")
-
-def unmount_usb(device_path, mount_point):
-    try:
-        command = f'umount --lazy {mount_point}'
-        subprocess.run(command, shell=True, check=True)
-        shutil.rmtree(mount_point)
-        decky_plugin.logger.info(f"USB unmounted: {device_path}")
-    except subprocess.CalledProcessError as e:
-        decky_plugin.logger.error(f"Error unmounting USB: {device_path} - {e}")
-
+    
 def get_device_property(device_path, property_name):
     command = f"udevadm info -q property -n {device_path}"
     output = subprocess.check_output(command, shell=True, text=True).strip()
     properties = dict(line.split("=") for line in output.split("\n"))
     return properties.get(property_name)
 
-# Continuous function to check for usb device changes
-async def monitor_usb():
-    mounted_devices = {}
+def read_libraryfolder(library_folder, index):
+    with open(library_folder + "/libraryfolder.vdf", 'r') as file:
+        contents = file.read()
 
-    while True:
-        devices = get_block_devices()
+    # Find the start and end positions of "libraryfolder" section
+    start_pos = contents.find('"libraryfolder"')
+    end_pos = contents.find('}', start_pos)
 
-        for device in devices:
-            if device not in mounted_devices and is_usb_device(device):
-                detect_and_mount_usb()
-                mounted_devices[device] = get_mount_point(device)
+    if start_pos == -1 or end_pos == -1:
+        raise ValueError('Invalid libraryfolder.vdf file format.')
 
-        for device in list(mounted_devices.keys()):
-            if not is_usb_device(device):
-                mount_point = mounted_devices[device]
-                unmount_usb(device, mount_point)
-                del mounted_devices[device]
+    # Create the modified content with the index
+    modified_content = '\t"' + str(index) + '"' + contents[start_pos + 15: end_pos].replace('\n', '\n\t') + '\t"path"\t\t"' + library_folder + '"\n\t}\n'
 
-        await asyncio.sleep(1)  # Adjust the sleep duration as needed
+    return modified_content
 
 class Plugin:
 
@@ -140,6 +105,72 @@ class Plugin:
                     "filesystem": filesystem
                 })
         return usb_devices
+    
+    async def mount_usb(self, device_path, mount_point, filesystem):
+        try:
+            primary_partition = get_primary_partition('/dev/' + device_path)
+            command = f'mount -t {filesystem} /dev/{primary_partition} {mount_point}'
+            subprocess.run(command, shell=True, check=True)
+            decky_plugin.logger.info(f"USB mounted: {device_path} -> {mount_point}")
+        except subprocess.CalledProcessError as e:
+            decky_plugin.logger.error(f"Error mounting USB: {device_path} -> {mount_point} - {e}")
+
+    async def unmount_usb(self, device_path, mount_point):
+        try:
+            command = f'umount --lazy {mount_point}'
+            subprocess.run(command, shell=True, check=True)
+            shutil.rmtree(mount_point)
+            decky_plugin.logger.info(f"USB unmounted: {device_path}")
+        except subprocess.CalledProcessError as e:
+            decky_plugin.logger.error(f"Error unmounting USB: {device_path} - {e}")
+    
+    # Provides mountpoint to steam client
+    async def add_libraryfolder(self, mount_point):
+        # Read the existing contents of the libraryfolders.vdf file
+        with open(decky_plugin.DECKY_USER_HOME + "/.steam/steam/steamapps/libraryfolders.vdf", 'r') as file:
+            contents = file.read()
+
+        # Find the position of the last closing brace '}' in the contents
+        last_brace_pos = contents.rfind('}')
+
+        if last_brace_pos == -1:
+            raise ValueError('Invalid libraryfolders.vdf file format.')
+
+        # Find the last index used in the libraryfolders.vdf file
+        last_index = 0
+
+        for line in contents.split('\n'):
+            if line.startswith('\t"') and line.strip().endswith('"'):
+                temp = line.strip()
+                temp = temp.replace('"', '')
+                last_index = int(temp)
+        
+        # Increment the last index to get the new index for the added library folder
+        new_index = last_index + 1
+
+        # Log the new index for debugging
+        decky_plugin.logger.error(f"New Index: {new_index}")
+
+        # Get the modified content from read_libraryfolder function using the new index
+        modified_content = read_libraryfolder(mount_point + "/SteamLibrary", new_index)
+
+        # Log the modified content for debugging
+        decky_plugin.logger.error(f"Modified Content: {modified_content}")
+
+        # Insert the modified content at the end of the libraryfolders.vdf file
+        updated_contents = contents[:last_brace_pos].rstrip() + '\n' + modified_content + '\n}'
+
+        # Log the updated contents for debugging
+        decky_plugin.logger.error(f"Updated Contents: {updated_contents}")
+
+        # Write the updated contents back to the libraryfolders.vdf file
+        with open(decky_plugin.DECKY_USER_HOME + "/.steam/steam/steamapps/libraryfolders.vdf", 'w') as file:
+            file.write(updated_contents)
+
+    # Check if steam library exists on a given drive
+    async def verify_steam_library_path(self, mount_point):
+        file_path = mount_point + "/SteamLibrary/libraryfolder.vdf"
+        return os.path.isfile(file_path)
     
     # A normal method. It can be called from JavaScript using call_plugin_function("method_1", argument1, argument2)
     async def add(self, left, right):
